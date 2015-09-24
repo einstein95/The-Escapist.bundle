@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>URL</key>
+	<dict>
+		<key>The Escapist</key>
+		<dict>
+			<key>TestURLs</key>
+			<array>
+				<string>http://www.escapistmagazine.com/videos/view/escape-to-the-movies/3785-Cowboys-and-Aliens</string>
+				<string>http://www.escapistmagazine.com/videos/view/the-big-picture/3768-Hollywood-History-101-Part-3</string>
+			</array>
+			<key>URLPatterns</key>
+			<array>
+				<string>^http://www.escapistmagazine.com/videos/view/[^/]+/\d+\-.+</string>
+			</array>
+		</dict>
+	</dict>
+</dict>
+</plist>

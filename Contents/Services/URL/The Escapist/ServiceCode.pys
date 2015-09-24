@@ -1,0 +1,103 @@
+from urllib import urlencode
+
+OLD_RE_FLASHVARS = Regex(' value=\"config=(?P<url>[^\"]+)\"')
+RE_FLASHVARS = Regex("imsVideo\.play\((?P<url>\{[^}]+\})")
+HTTP_HEADERS = {
+	'Cookie': 'age_gate_birthday=19800101',
+	'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.8; rv:23.0) Gecko/20100101 Firefox/23.0'
+}
+
+####################################################################################################
+def NormalizeURL(url):
+	return url.split('?')[0]
+
+####################################################################################################
+def MetadataObjectForURL(url):
+	html = HTML.ElementFromURL(url)
+
+	title = html.xpath('//meta[@property="og:title"]/@content')[0]
+	description = html.xpath('//meta[@property="og:description"]/@content')[0]
+	thumb = html.xpath('//meta[@property="og:image"]/@content')[0]
+
+	# Attempt to extract the date.
+	try:
+		date = html.xpath("//span[@class='utc_timestamp']/text()")[0]
+		date = Datetime.ParseDate(date)
+	except:
+		date = None
+
+	return VideoClipObject(
+		title = title,
+		summary = description,
+		thumb = thumb,
+		originally_available_at = date
+	)
+
+####################################################################################################
+def MediaObjectsForURL(url):
+	return [
+		MediaObject(
+			parts = [PartObject(key=Callback(PlayVideo, url=url, post_url=url))],
+			container = Container.MP4,
+			video_resolution = 'sd',
+			video_codec = VideoCodec.H264,
+			audio_codec = AudioCodec.AAC,
+			audio_channels = 2,
+			optimized_for_streaming = True
+		)
+	]
+
+####################################################################################################
+@indirect
+def PlayVideo(url):
+
+	page_content = HTTP.Request(url).content
+
+	# Find the 'flashvars' associated with the player. This contains the required config path.
+	config_url = RE_FLASHVARS.search(page_content)
+
+	if not config_url:
+		config_url = OLD_RE_FLASHVARS.search(page_content)
+		if not config_url:
+			Log(page_content)
+			raise Ex.MediaNotAvailable
+
+		config_url = String.Unquote(config_url.group('url'), usePlus=True)
+		json_page = HTTP.Request(config_url).content
+
+		json_page = json_page.replace("'", '"')
+		json = JSON.ObjectFromString(json_page)
+
+		video_url = json['playlist'][1]['url']
+		return IndirectResponse(VideoClipObject, key=video_url)
+
+
+	config_url = String.Unquote(config_url.group('url'), usePlus=True)
+
+	# We can use the config path to actually get a JSON page which contains the actual MP4 path to the associated video.
+	config = JSON.ObjectFromString(config_url)
+	url = "http://www.escapistmagazine.com/videos/vidconfig.php?" + urlencode(config)
+	encoded = HTTP.Request(url).content
+	t = ""
+	a = ""
+	data = ""
+	while len(t) < len(encoded)/ 2:
+		t += config["hash"]
+	t = t[:len(encoded) / 2]
+	for o in range(0, len(encoded), 2):
+		a += chr(int("" + encoded[o] + encoded[o + 1], 16))
+	for o in range(len(t)):
+		data += chr(ord(t[o]) ^ ord(a[o]))
+
+	Log(data)
+	data = JSON.ObjectFromString(data)
+	video_url = None
+	quality = Prefs['quality']
+	for item in data["files"]["videos"]:
+		if item["type"] == "video/mp4":
+			if item['res'] == int(quality[:-1]):
+				video_url = item["src"]
+	if video_url == None:
+		raise Ex.MediaNotAvailable
+
+	return IndirectResponse(VideoClipObject, key=video_url)
